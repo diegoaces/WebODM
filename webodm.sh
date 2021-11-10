@@ -333,6 +333,27 @@ resetpassword(){
 		usage
 	fi
 }
+changepassword(){
+	username=$1
+	newpass=$2
+
+	if [[ ! -z "$newpass" ]] && [[ ! -z "$newpass" ]] ; then
+		container_hash=$(docker ps -q --filter "name=webapp")
+		if [[ -z "$container_hash" ]]; then
+			echo -e "\033[91mCannot find webapp docker container. Is WebODM running?\033[39m"
+			exit 1
+		fi
+
+		docker exec $container_hash bash -c "echo \"from django.contrib.auth.models import User;from django.contrib.auth.hashers import make_password;u=User.objects.filter(username= '$username')[0];u.password=make_password('$newpass');u.save();print('The following user was changed: {}'.format(u.username));\" | python manage.py shell"
+		if [[ "$?" -eq 0 ]]; then
+			echo -e "\033[1mPassword changed!\033[0m"
+		else
+			echo -e "\033[91mCould not change $username password. If you need help, please visit https://github.com/OpenDroneMap/WebODM/issues/ \033[39m"
+		fi
+	else
+		usage
+	fi
+}
 
 if [[ $1 = "start" ]]; then
 	environment_check
@@ -388,6 +409,9 @@ elif [[ $1 = "test" ]]; then
 	run_tests
 elif [[ $1 = "resetadminpassword" ]]; then
 	resetpassword $2
+	
+elif [[ $1 = "changepassword" ]]; then
+	changepassword $2 $3
 else
 	usage
 fi
