@@ -5,6 +5,7 @@ from django.utils.translation import gettext as _
 
 import json, shutil
 
+
 def get_memory_stats():
     """
     Get node total memory and memory usage (Linux only)
@@ -39,7 +40,10 @@ class Plugin(PluginBase):
         @login_required
         def diagnostic(request):
             # Disk space
-            total_disk_space, used_disk_space, free_disk_space = shutil.disk_usage('/mnt/demo_volume')
+            if (shutil.disk_usage('/webodm/app/media')):
+                total_disk_space, used_disk_space, free_disk_space = shutil.disk_usage('/webodm/app/media')
+            else:
+                total_disk_space, used_disk_space, free_disk_space = shutil.disk_usage('./')
 
             template_args = {
                 'title': 'Diagnostic',
@@ -60,5 +64,3 @@ class Plugin(PluginBase):
         return [
             MountPoint('$', diagnostic)
         ]
-
-
