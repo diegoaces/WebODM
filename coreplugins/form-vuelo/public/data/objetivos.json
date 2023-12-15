@@ -1,0 +1,30 @@
+[
+  {
+    "label": "DESECHOS",
+    "value": 1
+  },
+  {
+    "label": "COSECHA",
+    "value": 2
+  },
+  {
+    "label": "RALEO",
+    "value": 3
+  },
+  {
+    "label": "EVALUACIÓN",
+    "value": 4
+  },
+  {
+    "label": "INCENDIO",
+    "value": 5
+  },
+  {
+    "label": "ROBO",
+    "value": 6
+  },
+  {
+    "label": "OTROS",
+    "value": 7
+  }
+]
