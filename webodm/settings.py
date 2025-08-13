@@ -21,7 +21,7 @@ from django.contrib.messages import constants as messages
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-# Quick-start development settings - unsuitable for production
+# For best practices
 # See https://docs.djangoproject.com/en/1.10/howto/deployment/checklist/
 
 try:
@@ -370,6 +370,13 @@ NODE_OPTIMISTIC_MODE = False
 # URL to external auth endpoint
 EXTERNAL_AUTH_ENDPOINT = ''
 
+# Enable cluster mode for this instance by setting an integer ID >= 1
+CLUSTER_ID = None
+
+# Set the Cluster URL pattern common to all servers in the cluster
+# e.g. https://mycluster%s.mydomain
+CLUSTER_URL = ''
+
 # URL to a page where a user can reset the password
 RESET_PASSWORD_LINK = ''
 
@@ -390,6 +397,9 @@ CLEANUP_EMPTY_PROJECTS = None
 
 # Maximum number of threads that a worker should use for processing
 WORKERS_MAX_THREADS = 1
+
+# Maximum number of seconds a worker task should take before being terminated
+WORKERS_MAX_TIME_LIMIT = None
 
 # Link to GCP docs
 GCP_DOCS_LINK = "https://docs.opendronemap.org/gcp/#gcp-file-format"

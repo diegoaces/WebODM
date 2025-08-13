@@ -123,7 +123,7 @@ def setInterval(interval, func, *args):
     t.start()
     return stopped.set
 
-@app.task(ignore_result=True)
+@app.task(ignore_result=True, time_limit=settings.WORKERS_MAX_TIME_LIMIT)
 def process_task(taskId):
     lock_id = 'task_lock_{}'.format(taskId)
     cancel_monitor = None
@@ -190,12 +190,15 @@ def process_pending_tasks():
         process_task.delay(task.id)
 
 
-@app.task(bind=True)
+@app.task(bind=True, time_limit=settings.WORKERS_MAX_TIME_LIMIT)
 def export_raster(self, input, **opts):
     try:
         logger.info("Exporting raster {} with options: {}".format(input, json.dumps(opts)))
         tmpfile = tempfile.mktemp('_raster.{}'.format(extension_for_export_format(opts.get('format', 'gtiff'))), dir=settings.MEDIA_TMP)
-        export_raster_sync(input, tmpfile, **opts)
+        def progress_callback(status, perc):
+            self.update_state(state="PROGRESS", meta={"status": status, "progress": perc})
+        
+        export_raster_sync(input, tmpfile, progress_callback=progress_callback, **opts)
         result = {'file': tmpfile}
 
         if settings.TESTING:
@@ -203,10 +206,11 @@ def export_raster(self, input, **opts):
 
         return result
     except Exception as e:
+        # logger.error(traceback.format_exc())
         logger.error(str(e))
         return {'error': str(e)}
 
-@app.task(bind=True)
+@app.task(bind=True, time_limit=settings.WORKERS_MAX_TIME_LIMIT)
 def export_pointcloud(self, input, **opts):
     try:
         logger.info("Exporting point cloud {} with options: {}".format(input, json.dumps(opts)))

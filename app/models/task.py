@@ -160,7 +160,6 @@ def resize_image(image_path, resize_to, done=None):
         os.remove(image_path)
         os.rename(resized_image_path, image_path)
 
-        logger.info("Resized {} to {}x{}".format(image_path, resized_width, resized_height))
     except (IOError, ValueError, struct.error, Image.DecompressionBombError) as e:
         logger.warning("Cannot resize {}: {}.".format(image_path, str(e)))
         if done is not None:
@@ -184,6 +183,7 @@ class Task(models.Model):
             'orthophoto.png': os.path.join('odm_orthophoto', 'odm_orthophoto.png'),
             'orthophoto.mbtiles': os.path.join('odm_orthophoto', 'odm_orthophoto.mbtiles'),
             'orthophoto.kmz': os.path.join('odm_orthophoto', 'odm_orthophoto.kmz'),
+            'cutline.gpkg': os.path.join('odm_orthophoto', 'cutline.gpkg'),
             'georeferenced_model.las': os.path.join('odm_georeferencing', 'odm_georeferenced_model.las'),
             'georeferenced_model.laz': os.path.join('odm_georeferencing', 'odm_georeferenced_model.laz'),
             'georeferenced_model.ply': os.path.join('odm_georeferencing', 'odm_georeferenced_model.ply'),
@@ -374,6 +374,16 @@ class Task(models.Model):
         self.validate_unique()
 
         super(Task, self).save(*args, **kwargs)
+    
+    def get_extent(self):
+        if self.orthophoto_extent is not None:
+            return self.orthophoto_extent.extent
+        elif self.dsm_extent is not None:
+            return self.dsm_extent.extent
+        elif self.dtm_extent is not None:
+            return self.dsm_extent.extent
+        else:
+            return None
 
     def assets_path(self, *args):
         """
@@ -470,9 +480,6 @@ class Task(models.Model):
                     try:
                         # Try to use hard links first
                         shutil.copytree(self.task_path(), task.task_path(), copy_function=os.link)
-
-                        # Make sure the console output is not linked to the original task
-                        task.console.delink()
                     except Exception as e:
                         logger.warning("Cannot duplicate task using hard links, will use normal copy instead: {}".format(str(e)))
                         shutil.copytree(self.task_path(), task.task_path())
@@ -645,7 +652,7 @@ class Task(models.Model):
 
         try:
             self.extract_assets_and_complete()
-        except zipfile.BadZipFile:
+        except (zipfile.BadZipFile, FileNotFoundError):
             raise NodeServerError(gettext("Invalid zip file"))
         except NotImplementedError:
             raise NodeServerError(gettext("Unsupported compression method"))
@@ -943,7 +950,7 @@ class Task(models.Model):
             logger.warning("{} connection/timeout error: {}. We'll try reprocessing at the next tick.".format(self, str(e)))
         except TaskInterruptedException as e:
             # Task was interrupted during image resize / upload
-            logger.warning("{} interrupted".format(self, str(e)))
+            logger.warning("{} interrupted: {}".format(self, str(e)))
 
     def extract_assets_and_complete(self):
         """
@@ -980,7 +987,7 @@ class Task(models.Model):
             # Check if the zip file contained a top level directory
             # which shouldn't be there and try to fix the structure
             top_level = [os.path.join(assets_dir, d) for d in os.listdir(assets_dir)]
-            if len(top_level) == 1 and os.path.isdir(top_level[0]):
+            if len(top_level) == 1 and os.path.isdir(top_level[0]) and (not top_level[0].endswith("odm_orthophoto")):
                 second_level = [os.path.join(top_level[0], f) for f in os.listdir(top_level[0])]
                 if len(second_level) > 0:
                     logger.info("Top level directory found in imported archive, attempting to fix")
@@ -1038,6 +1045,11 @@ class Task(models.Model):
             self.import_url = ""
         else:
             self.console += gettext("Done!") + "\n"
+
+        task_output = self.assets_path("task_output.txt")
+        if os.path.isfile(task_output):
+            # Guarantee consistency, save space
+            self.console.link(task_output)
         
         self.save()
 
@@ -1097,7 +1109,8 @@ class Task(models.Model):
                     'ground_control_points': ground_control_points,
                     'epsg': self.epsg,
                     'orthophoto_bands': self.orthophoto_bands,
-                    'crop': self.crop is not None
+                    'crop': self.crop is not None,
+                    'extent': self.get_extent(),
                 }
             }
         }
@@ -1292,8 +1305,9 @@ class Task(models.Model):
                 self.check_if_canceled()
                 last_update = time.time()
 
-        resized_images = list(map(partial(resize_image, resize_to=self.resize_to, done=callback), images_path))
-
+        resized_images = [im for im in list(map(partial(resize_image, resize_to=self.resize_to, done=callback), images_path)) 
+                          if im is not None]
+        
         Task.objects.filter(pk=self.id).update(resize_progress=1.0)
 
         return resized_images
